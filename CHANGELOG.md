@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.2.3 — 2026-07-11
+
+### Fixed
+- `SyntaxError: Identifier 'pollSelect' has already been declared` in `addNode()` — duplicate `const pollSelect` declaration prevented the entire app.js from executing, causing all frontend functionality (cards, pings, etc.) to silently fail
+
 ## v1.2.2 — 2026-07-11
 
 ### Fixed

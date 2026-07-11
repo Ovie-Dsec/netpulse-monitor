@@ -775,7 +775,6 @@ class NetpulseMonitorApp {
     card.querySelector('.btn-delete').addEventListener('click', () => this._deleteNode(ip));
     card.querySelector('.btn-disable').addEventListener('click', () => this.toggleNode(ip));
 
-    const pollSelect = card.querySelector('.card-poll-rate');
     if (pollSelect) {
       pollSelect.addEventListener('change', () => this._setNodePollRate(ip, parseInt(pollSelect.value, 10)));
     }
