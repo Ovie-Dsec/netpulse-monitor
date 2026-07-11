@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.2.2 — 2026-07-11
+
+### Fixed
+- WebSocket orphaned after watchdog restart — `createApp()` now closes the old HTTP server before creating a new one, preventing EADDRINUSE and ensuring WS broadcasts reach connected clients
+- Frontend now monitors ping receipt — if no ping is received for 15 seconds, the page auto-reloads to recover from a disconnected WS
+
 ## v1.2.1 — 2026-07-11
 
 ### Fixed

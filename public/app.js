@@ -211,6 +211,7 @@ class NetpulseMonitorApp {
     this.notifEnabled = localStorage.getItem('netpulse-notif') === '1';
     this.dashboardVisible = false;
     this._particles = null;
+    this._lastPingTime = Date.now();
     this._bindElements();
     this._bindEvents();
     this._initClock();
@@ -219,6 +220,7 @@ class NetpulseMonitorApp {
     this._loadChartType();
     this._initResizeHandle();
     this._initParticles();
+    this._startPingWatchdog();
   }
 
   _bindElements() {
@@ -439,6 +441,15 @@ class NetpulseMonitorApp {
     }
   }
 
+  _startPingWatchdog() {
+    setInterval(() => {
+      if (Date.now() - this._lastPingTime > 15000) {
+        this._writeConsole('No ping data for 15s — reloading page...', 'warn');
+        location.reload();
+      }
+    }, 10000);
+  }
+
   _connectWebSocket() {
     const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
     const url = proto + '//' + window.location.host;
@@ -544,6 +555,7 @@ class NetpulseMonitorApp {
   }
 
   _ingestPingResult(data) {
+    this._lastPingTime = Date.now();
     const engine = this.engines.get(data.ip);
     if (!engine) return;
 

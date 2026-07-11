@@ -29,6 +29,9 @@ async function getAvailablePort(start) {
 let app, server, wss, clients;
 
 function createApp() {
+  if (server) {
+    try { server.close(); } catch (_) {}
+  }
   app = express();
   server = http.createServer(app);
   wss = new WebSocketServer({ server });
