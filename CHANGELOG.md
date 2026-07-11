@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.2.1 — 2026-07-11
+
+### Fixed
+- Card ECG waveforms not rendering — duplicate `_updateStatusBar` method used `engine.data` which doesn't exist on PulseWaveEngine (`engine.buffer` is the correct property), throwing a TypeError that silently killed all subsequent WebSocket ping handling
+- Removed duplicate `_updateStatusBar` and consolidated to a single implementation
+
 ## v1.2.0 — 2026-07-11
 
 ### Added
