@@ -2,7 +2,7 @@
 
 A real-time local network diagnostics dashboard with a dark-mode cyber-medical UI. Monitors multiple IP targets via ICMP ping, renders live ECG-style waveforms, and syncs across all LAN clients via WebSocket.
 
-![Netpulse Monitor Screenshot](public/NPM.png)
+![Netpulse Monitor Screenshot](NPM%20Screenshot.png)
 
 ## Features
 
