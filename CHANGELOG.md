@@ -1,5 +1,18 @@
 # Changelog
 
+## v1.2.0 — 2026-07-11
+
+### Added
+- Sound Alerts — Web Audio API oscillator plays descending tone on OFFLINE, ascending tone on recovery; toggle in Visual settings
+- Desktop Notifications — Notification API fires when tab is backgrounded and a node transitions OFFLINE/ONLINE; permission requested on first enable
+- Config Export/Import — download node list as JSON, upload to bulk-add nodes; buttons in Add IP settings pane
+- Per-Node Ping Schedule — `poll_rate` column on `nodes` table with backward-compatible migration; per-target `setInterval` via `setTargetPollRate()`; interval `<select>` on each card (500ms – 30s); `PUT /api/nodes/:ip/pollrate` endpoint
+- Particle Background — 80 floating particles with upward drift, pulse on each ping in status color; fixed `<canvas>` at z-index -1
+- Historical Dashboard — toggle from header button; fetches history per node; renders latency-over-time line chart, aggregate uptime donut, and scrollable downtime timeline
+
+### Fixed
+- `NaN` latency crash on Windows when ping module returns `"unknown"` string for unreachable hosts (now properly type-checks `result.time`)
+
 ## v1.1.0 — 2026-07-11
 
 ### Added
