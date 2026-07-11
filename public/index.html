@@ -21,6 +21,14 @@
       </div>
     </header>
 
+    <div class="status-summary-bar" id="statusSummaryBar">
+      <div class="stat-block stat-online"><span class="stat-dot online"></span><span id="statOnlineCount">0</span> Online</div>
+      <div class="stat-block stat-degraded"><span class="stat-dot degraded"></span><span id="statDegradedCount">0</span> Degraded</div>
+      <div class="stat-block stat-offline"><span class="stat-dot offline"></span><span id="statOfflineCount">0</span> Offline</div>
+      <div class="stat-block stat-avg"><span id="statAvgLatency">—</span> Avg</div>
+      <div class="stat-block stat-uptime"><span id="statUptimePct">100.0</span>% Uptime</div>
+    </div>
+
     <main class="netpulse-grid" id="monitorGrid">
     </main>
 

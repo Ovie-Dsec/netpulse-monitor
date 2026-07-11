@@ -518,6 +518,10 @@ class NetpulseMonitorApp {
     this._updateCardLed(data.ip, data.latency, data.status);
     this._writeGlobalConsole(data.ip, data.latency, data.status);
 
+    this._updateDonutRing(data.ip, data.status);
+    this._updateSparkline(data.ip, data.status === 'OFFLINE' ? -1 : data.latency);
+    this._updateStatusBar();
+
     if (this.overlayIp === data.ip && this._overlayEngineInstance) {
       if (data.status === 'OFFLINE') {
         this._overlayEngineInstance.pushEmpty();
@@ -526,6 +530,141 @@ class NetpulseMonitorApp {
       }
       this._writeOverlayConsole(data.ip, data.latency, data.status);
     }
+  }
+
+  _updateDonutRing(ip, status) {
+    const card = this.nodes.get(ip);
+    if (!card) return;
+    const canvas = card.querySelector('.card-donut-canvas');
+    if (!canvas) return;
+    const d = canvas._donutData || { ok: 0, fail: 0 };
+    if (status === 'ONLINE' || status === 'DEGRADED') d.ok++;
+    else d.fail++;
+    canvas._donutData = d;
+
+    const total = d.ok + d.fail;
+    const pct = total ? Math.round((d.ok / total) * 100) : 100;
+    const ctx = canvas.getContext('2d');
+    const rect = canvas.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = rect.width * dpr;
+    canvas.height = rect.height * dpr;
+    ctx.scale(dpr, dpr);
+
+    const w = rect.width, h = rect.height;
+    const cx = w / 2, cy = h / 2, r = Math.min(cx, cy) - 2;
+    ctx.clearRect(0, 0, w, h);
+
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = '#1a2332';
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.stroke();
+
+    const frac = Math.min(pct / 100, 1);
+    ctx.strokeStyle = pct >= 95 ? '#00ff66' : pct >= 80 ? '#ffaa00' : '#ff3355';
+    ctx.shadowColor = ctx.strokeStyle;
+    ctx.shadowBlur = 4;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * frac);
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+
+    if (total >= 3) {
+      const pctEl = card.querySelector('.card-donut-pct');
+      if (pctEl) pctEl.textContent = pct;
+    }
+  }
+
+  _updateSparkline(ip, latency) {
+    const card = this.nodes.get(ip);
+    if (!card) return;
+    const canvas = card.querySelector('.card-sparkline-canvas');
+    if (!canvas) return;
+    const data = canvas._sparkData || [];
+    if (latency >= 0) data.push(Math.min(latency, 500));
+    else data.push(500);
+    if (data.length > 60) data.shift();
+    canvas._sparkData = data;
+    if (data.length < 2) return;
+
+    const ctx = canvas.getContext('2d');
+    const rect = canvas.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = rect.width * dpr;
+    canvas.height = rect.height * dpr;
+    ctx.scale(dpr, dpr);
+
+    const w = rect.width, h = rect.height;
+    ctx.clearRect(0, 0, w, h);
+
+    const step = w / Math.max(data.length - 1, 1);
+    const maxVal = 500;
+    ctx.beginPath();
+    ctx.moveTo(0, h);
+    for (let i = 0; i < data.length; i++) {
+      const x = i * step;
+      const y = h - (Math.min(data[i], maxVal) / maxVal) * (h - 1);
+      ctx.lineTo(x, y);
+    }
+    ctx.lineTo((data.length - 1) * step, h);
+    ctx.closePath();
+
+    const grad = ctx.createLinearGradient(0, 0, 0, h);
+    grad.addColorStop(0, 'rgba(0, 255, 102, 0.5)');
+    grad.addColorStop(0.6, 'rgba(255, 170, 0, 0.3)');
+    grad.addColorStop(1, 'rgba(255, 51, 85, 0.15)');
+    ctx.fillStyle = grad;
+    ctx.fill();
+
+    ctx.strokeStyle = '#00ff66';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (let i = 0; i < data.length; i++) {
+      const x = i * step;
+      const y = h - (Math.min(data[i], maxVal) / maxVal) * (h - 1);
+      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+  }
+
+  _updateStatusBar() {
+    let online = 0, degraded = 0, offline = 0, totalLat = 0, latCount = 0;
+    let totalOk = 0, totalPings = 0;
+    this.engines.forEach((engine, ip) => {
+      const card = this.nodes.get(ip);
+      if (!card) return;
+      if (card.classList.contains('disabled')) return;
+      const label = card.querySelector('.status-label');
+      if (!label) return;
+      const text = label.textContent;
+      if (text === 'Online') { online++; }
+      else if (text === 'Degraded' || text === 'Warning') { degraded++; }
+      else { offline++; }
+      const donut = card.querySelector('.card-donut-canvas');
+      if (donut && donut._donutData) {
+        totalOk += donut._donutData.ok;
+        totalPings += donut._donutData.ok + donut._donutData.fail;
+      }
+      if (engine.buffer && engine.sampleCount > 0) {
+        const vals = [];
+        for (let i = 0; i < engine.sampleCount; i++) {
+          const v = engine.buffer[(engine.writeIndex - engine.sampleCount + i + engine.bufferSize) % engine.bufferSize];
+          if (v >= 0) vals.push(v);
+        }
+        if (vals.length > 0) {
+          const avgNorm = vals.reduce((a, b) => a + b, 0) / vals.length;
+          totalLat += (1 - avgNorm) * 500;
+          latCount++;
+        }
+      }
+    });
+    document.getElementById('statOnlineCount').textContent = online;
+    document.getElementById('statDegradedCount').textContent = degraded;
+    document.getElementById('statOfflineCount').textContent = offline;
+    document.getElementById('statAvgLatency').textContent = latCount ? Math.round(totalLat / latCount) + 'ms' : '—';
+    const uptime = totalPings ? Math.round((totalOk / totalPings) * 100) : 100;
+    document.getElementById('statUptimePct').textContent = uptime.toFixed(1);
   }
 
   isValidIp(str) {
@@ -582,6 +721,11 @@ class NetpulseMonitorApp {
     const engine = new PulseWaveEngine(canvas);
     engine.chartType = this.chartTypeSelect.value;
     this.engines.set(ip, engine);
+
+    const donutCanvas = card.querySelector('.card-donut-canvas');
+    const sparkCanvas = card.querySelector('.card-sparkline-canvas');
+    donutCanvas._donutData = { ok: 0, fail: 0 };
+    sparkCanvas._sparkData = [];
 
     requestAnimationFrame(() => {
       engine.resize();
@@ -828,12 +972,19 @@ class NetpulseMonitorApp {
           '<span class="card-address">' + ip + '</span>' +
         '</div>' +
         '<div class="card-led-group">' +
+          '<div class="card-donut-wrap">' +
+            '<canvas class="card-donut-canvas"></canvas>' +
+            '<span class="card-donut-pct">100</span>' +
+          '</div>' +
           '<span class="status-led green"></span>' +
           '<span class="status-label">Online</span>' +
         '</div>' +
       '</div>' +
       '<div class="card-pulse-wrapper">' +
         '<canvas class="pulse-canvas"></canvas>' +
+      '</div>' +
+      '<div class="card-sparkline-wrap">' +
+        '<canvas class="card-sparkline-canvas"></canvas>' +
       '</div>' +
       '<div class="card-controls">' +
         '<button class="btn btn-expand">EXPAND VIEWPORT</button>' +

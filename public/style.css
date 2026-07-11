@@ -132,6 +132,109 @@ html, body {
 }
 
 /* ================================
+   STATUS SUMMARY BAR
+   ================================ */
+
+.status-summary-bar {
+  display: flex;
+  gap: 16px;
+  padding: 8px 20px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-color);
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  align-items: center;
+  user-select: none;
+  flex-shrink: 0;
+}
+
+.stat-block {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--text-secondary);
+}
+
+.stat-block span:first-child:not(.stat-dot) {
+  color: var(--text-primary);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  min-width: 18px;
+  text-align: right;
+}
+
+.stat-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.stat-dot.online { background: var(--accent-green); box-shadow: 0 0 6px var(--accent-green); }
+.stat-dot.degraded { background: var(--accent-yellow); box-shadow: 0 0 6px var(--accent-yellow); }
+.stat-dot.offline { background: var(--accent-red); box-shadow: 0 0 6px var(--accent-red); }
+
+.stat-block.stat-online span:first-child { color: var(--accent-green); }
+.stat-block.stat-degraded span:first-child { color: var(--accent-yellow); }
+.stat-block.stat-offline span:first-child { color: var(--accent-red); }
+
+.stat-avg span, .stat-uptime span { color: var(--accent-cyan) !important; }
+.stat-block + .stat-block::before {
+  content: '';
+  display: inline-block;
+  width: 1px;
+  height: 12px;
+  background: var(--border-color);
+  margin-right: 16px;
+}
+
+/* ================================
+   DONUT RING
+   ================================ */
+
+.card-donut-wrap {
+  position: relative;
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+}
+
+.card-donut-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.card-donut-pct {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 7px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  letter-spacing: 0;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+
+/* ================================
+   SPARKLINE
+   ================================ */
+
+.card-sparkline-wrap {
+  width: 100%;
+  height: 20px;
+  margin: -4px 0 4px;
+}
+
+.card-sparkline-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* ================================
    NETPULSE GRID
    ================================ */
 
