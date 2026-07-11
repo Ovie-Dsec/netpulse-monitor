@@ -14,6 +14,7 @@ class PulseWaveEngine {
     this.amplitude = 0.35;
     this.chartType = 'ecg';
     this.displayWindow = 20;
+    this._bounceStart = null;
     this._initCanvas();
   }
 
@@ -43,6 +44,7 @@ class PulseWaveEngine {
     const normalized = Math.min(ms / 500, 1);
     const spike = 1 - normalized;
     this.pushValue(Math.max(spike, 0));
+    this._bounceStart = Date.now();
   }
 
   pushEmpty() {
@@ -92,6 +94,36 @@ class PulseWaveEngine {
         break;
       case 'grid-bar':
         this._drawGridBar(ctx, offset, renderCount, stepX, baselineY, amp);
+        break;
+      case 'gradient-fill':
+        this._drawGradientFill(ctx, offset, renderCount, stepX, baselineY, amp, w);
+        break;
+      case 'scatter':
+        this._drawScatter(ctx, offset, renderCount, stepX, baselineY, amp);
+        break;
+      case 'glow-bar':
+        this._drawGlowBar(ctx, offset, renderCount, stepX, baselineY, amp);
+        break;
+      case 'radar':
+        this._drawRadar(ctx, offset, renderCount, stepX, baselineY, amp);
+        break;
+      case 'candlestick':
+        this._drawCandlestick(ctx, offset, renderCount, stepX, baselineY, amp);
+        break;
+      case 'heat-wave':
+        this._drawHeatWave(ctx, offset, renderCount, stepX, baselineY, amp, w, h);
+        break;
+      case 'stem':
+        this._drawStem(ctx, offset, renderCount, stepX, baselineY, amp);
+        break;
+      case 'mountain':
+        this._drawMountain(ctx, offset, renderCount, stepX, baselineY, amp, w);
+        break;
+      case 'dot-matrix':
+        this._drawDotMatrix(ctx, offset, renderCount, stepX, baselineY, amp, w, h);
+        break;
+      case 'bounce':
+        this._drawBounce(ctx, offset, renderCount, stepX, baselineY, amp);
         break;
       default:
         this._drawEcg(ctx, offset, renderCount, stepX, baselineY, amp);
@@ -191,6 +223,243 @@ class PulseWaveEngine {
       ctx.shadowBlur = 0;
       ctx.fillStyle = this.color + '40';
       ctx.fillRect(x, y, barWidth, barH);
+    }
+  }
+
+  _drawGradientFill(ctx, offset, count, stepX, baselineY, amp, w) {
+    ctx.beginPath();
+    ctx.moveTo(0, baselineY);
+    for (let i = 0; i < count; i++) {
+      const val = this.buffer[(offset + i) % this.bufferSize];
+      const x = i * stepX;
+      const y = val < 0 ? baselineY : baselineY - val * amp;
+      ctx.lineTo(x, y);
+    }
+    ctx.lineTo((count - 1) * stepX, baselineY);
+    ctx.closePath();
+    const grad = ctx.createLinearGradient(0, 0, 0, baselineY);
+    grad.addColorStop(0, this.color);
+    grad.addColorStop(0.4, this.color + '80');
+    grad.addColorStop(1, this.color + '05');
+    ctx.fillStyle = grad;
+    ctx.fill();
+    ctx.beginPath();
+    for (let i = 0; i < count; i++) {
+      const val = this.buffer[(offset + i) % this.bufferSize];
+      const x = i * stepX;
+      const y = val < 0 ? baselineY : baselineY - val * amp;
+      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    }
+    ctx.strokeStyle = this.color;
+    ctx.lineWidth = this.lineWidth;
+    ctx.shadowColor = this.color;
+    ctx.shadowBlur = 6;
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+  }
+
+  _drawScatter(ctx, offset, count, stepX, baselineY, amp) {
+    for (let i = 0; i < count; i++) {
+      const val = this.buffer[(offset + i) % this.bufferSize];
+      if (val < 0) continue;
+      const x = i * stepX;
+      const y = baselineY - val * amp;
+      const r = Math.max(2, val * 6);
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.fillStyle = this.color;
+      ctx.shadowColor = this.color;
+      ctx.shadowBlur = 10;
+      ctx.fill();
+      ctx.shadowBlur = 0;
+    }
+  }
+
+  _drawGlowBar(ctx, offset, count, stepX, baselineY, amp) {
+    const barW = Math.max(2, stepX * 0.5);
+    for (let i = 0; i < count; i++) {
+      const val = this.buffer[(offset + i) % this.bufferSize];
+      if (val < 0) continue;
+      const x = i * stepX + (stepX - barW) / 2;
+      const barH = val * amp;
+      const y = baselineY - barH;
+      const grad = ctx.createLinearGradient(0, y, 0, baselineY);
+      grad.addColorStop(0, this.color);
+      grad.addColorStop(0.3, this.color + '80');
+      grad.addColorStop(0.7, this.color + '20');
+      grad.addColorStop(1, this.color + '00');
+      ctx.fillStyle = grad;
+      ctx.shadowColor = this.color;
+      ctx.shadowBlur = 12;
+      ctx.fillRect(x, y, barW, barH);
+      ctx.shadowBlur = 0;
+    }
+  }
+
+  _drawRadar(ctx, offset, count, stepX, baselineY, amp) {
+    ctx.beginPath();
+    for (let i = 0; i < count; i++) {
+      const val = this.buffer[(offset + i) % this.bufferSize];
+      const x = i * stepX;
+      const y = val < 0 ? baselineY : baselineY - val * amp;
+      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    }
+    ctx.strokeStyle = this.color + '60';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    if (count > 0) {
+      const lastVal = this.buffer[(offset + count - 1) % this.bufferSize];
+      const lx = (count - 1) * stepX;
+      const ly = lastVal < 0 ? baselineY : baselineY - lastVal * amp;
+      ctx.beginPath();
+      ctx.arc(lx, ly, 4, 0, Math.PI * 2);
+      ctx.fillStyle = this.color;
+      ctx.shadowColor = this.color;
+      ctx.shadowBlur = 16;
+      ctx.fill();
+      ctx.shadowBlur = 0;
+    }
+  }
+
+  _drawCandlestick(ctx, offset, count, stepX, baselineY, amp) {
+    const half = Math.floor(count / 2);
+    for (let i = 0; i < count; i++) {
+      const val = this.buffer[(offset + i) % this.bufferSize];
+      if (val < 0) continue;
+      const x = i * stepX + stepX / 2;
+      const topY = baselineY - val * amp;
+      const bottomY = i < half ? baselineY : baselineY + (baselineY - topY) * 0.3;
+      ctx.beginPath();
+      ctx.moveTo(x, bottomY);
+      ctx.lineTo(x, topY);
+      ctx.strokeStyle = i < half ? '#00ff66' : '#ff3355';
+      ctx.lineWidth = 2;
+      ctx.shadowColor = ctx.strokeStyle;
+      ctx.shadowBlur = 4;
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = ctx.strokeStyle;
+      ctx.fillRect(x - 2, topY - 1, 4, 3);
+    }
+  }
+
+  _drawHeatWave(ctx, offset, count, stepX, baselineY, amp, w, h) {
+    const bands = 10;
+    const bandH = h / bands;
+    const colGrad = ctx.createLinearGradient(0, 0, 0, h);
+    colGrad.addColorStop(0, '#00ff66');
+    colGrad.addColorStop(0.3, '#66ff00');
+    colGrad.addColorStop(0.5, '#ffaa00');
+    colGrad.addColorStop(0.7, '#ff6600');
+    colGrad.addColorStop(1, '#ff3355');
+    for (let i = 0; i < count; i++) {
+      const val = this.buffer[(offset + i) % this.bufferSize];
+      if (val < 0) continue;
+      const x = i * stepX;
+      const heatH = Math.min(val * amp, h);
+      ctx.fillStyle = colGrad;
+      ctx.globalAlpha = 0.7;
+      ctx.fillRect(x, h - heatH, stepX - 1, heatH);
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  _drawStem(ctx, offset, count, stepX, baselineY, amp) {
+    for (let i = 0; i < count; i++) {
+      const val = this.buffer[(offset + i) % this.bufferSize];
+      if (val < 0) continue;
+      const x = i * stepX + stepX / 2;
+      const y = baselineY - val * amp;
+      ctx.beginPath();
+      ctx.moveTo(x, baselineY);
+      ctx.lineTo(x, y);
+      ctx.strokeStyle = this.color + '80';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(x, y, 3, 0, Math.PI * 2);
+      ctx.fillStyle = this.color;
+      ctx.shadowColor = this.color;
+      ctx.shadowBlur = 8;
+      ctx.fill();
+      ctx.shadowBlur = 0;
+    }
+  }
+
+  _drawMountain(ctx, offset, count, stepX, baselineY, amp, w) {
+    ctx.beginPath();
+    ctx.moveTo(0, baselineY);
+    for (let i = 0; i < count; i++) {
+      const val = this.buffer[(offset + i) % this.bufferSize];
+      const x = i * stepX;
+      const y = val < 0 ? baselineY : baselineY - val * amp;
+      ctx.lineTo(x, y);
+    }
+    ctx.lineTo((count - 1) * stepX, baselineY);
+    ctx.closePath();
+    ctx.fillStyle = this.color + '25';
+    ctx.fill();
+    ctx.beginPath();
+    for (let i = 0; i < count; i++) {
+      const val = this.buffer[(offset + i) % this.bufferSize];
+      const x = i * stepX;
+      const y = val < 0 ? baselineY : baselineY - val * amp;
+      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    }
+    ctx.strokeStyle = this.color;
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
+
+  _drawDotMatrix(ctx, offset, count, stepX, baselineY, amp, w, h) {
+    const dotR = Math.max(2, stepX * 0.3);
+    const rows = Math.floor(h / (dotR * 3));
+    for (let i = 0; i < count; i++) {
+      const val = this.buffer[(offset + i) % this.bufferSize];
+      const x = i * stepX + stepX / 2;
+      const row = val < 0 ? -1 : Math.min(Math.floor(val * rows), rows - 1);
+      for (let r = 0; r < rows; r++) {
+        const y = (r + 0.5) * (h / rows);
+        if (r <= row) {
+          const t = r / rows;
+          if (t < 0.33) ctx.fillStyle = '#00ff66';
+          else if (t < 0.66) ctx.fillStyle = '#ffaa00';
+          else ctx.fillStyle = '#ff3355';
+          ctx.globalAlpha = 0.8;
+        } else {
+          ctx.fillStyle = this.color;
+          ctx.globalAlpha = 0.08;
+        }
+        ctx.beginPath();
+        ctx.arc(x, y, dotR, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  _drawBounce(ctx, offset, count, stepX, baselineY, amp) {
+    for (let i = 0; i < count; i++) {
+      const val = this.buffer[(offset + i) % this.bufferSize];
+      if (val < 0) continue;
+      const x = i * stepX + stepX / 2;
+      const targetY = baselineY - val * amp;
+      const distFromHead = (this.writeIndex - (offset + i) + this.bufferSize) % this.bufferSize;
+      const ease = Math.min(distFromHead / 5, 1);
+      const bounce = Math.pow(1 - ease, 2) * Math.sin((1 - ease) * Math.PI * 4) * 40;
+      const y = targetY + bounce * (1 - ease);
+      const r = Math.max(2, val * 4);
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.fillStyle = this.color;
+      ctx.shadowColor = this.color;
+      ctx.shadowBlur = 12;
+      ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = '#ffffff20';
+      ctx.beginPath();
+      ctx.arc(x - r * 0.3, y - r * 0.3, r * 0.3, 0, Math.PI * 2);
+      ctx.fill();
     }
   }
 }

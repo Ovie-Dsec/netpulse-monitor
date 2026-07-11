@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.3.0 — 2026-07-11
+
+### Added
+- 10 new chart types for ECG waveform rendering: Gradient Wave (gradient fill beneath line), Scatter Dots (size-scaled dots), Glow Bars (vertical bars with alpha fade), Radar Sweep (oscilloscope leading-dot with fading tail), Candlestick (range bars with color-coded ticks), Heat Wave (latency-colored horizontal bands), Stem Plot (vertical stems with glowing circles), Mountain (solid filled area with thin border), Dot Matrix (scrolling column of status-colored dots), Bounce (animated balls with overshoot settling)
+- All chart types available via the Chart Type `<select>` in Visual settings
+
 ## v1.2.3 — 2026-07-11
 
 ### Fixed
