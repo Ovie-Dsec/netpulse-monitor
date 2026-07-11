@@ -1,5 +1,15 @@
 # Changelog
 
+## v1.1.0 — 2026-07-11
+
+### Added
+- Global Status Summary Bar — shows Online/Degraded/Offline counts, average latency, and overall uptime percentage below the header
+- Uptime Donut Ring — mini circular chart on each card showing uptime ratio as a green/red arc with percentage text
+- Mini Latency Sparkline — filled-area trend chart below each card's ECG waveform plotting the last 60 pings
+
+### Changed
+- Rebuilt portable EXE with all visualization updates
+
 ## v1.0.0 — 2026-07-11
 
 ### Added
