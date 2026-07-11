@@ -1,0 +1,8 @@
+node_modules/
+dist/
+data/
+pkg-cache*/
+*.exe
+*.db
+test-*
+*.log

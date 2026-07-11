@@ -1,0 +1,32 @@
+{
+  "name": "netpulse-monitor",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Netpulse Monitor - local network diagnostics dashboard",
+  "main": "src/server.js",
+  "bin": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "build:single": "pkg . --targets node18-win-x64 --icon NPM.ico --output dist/netpulse-single",
+    "build:portable": "pkg . --targets node18-win-x64 --icon NPM.ico --output dist/portable/netpulse && xcopy /E /I /Y public dist/portable/public",
+    "build": "npm run build:single && npm run build:portable"
+  },
+  "pkg": {
+    "assets": [
+      "public/**/*",
+      "node_modules/sql.js/dist/sql-wasm.wasm"
+    ]
+  },
+  "dependencies": {
+    "express": "^4.21.0",
+    "ping": "^0.4.4",
+    "sql.js": "^1.11.0",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "pkg": "^5.8.1",
+    "png-to-ico": "^3.0.1",
+    "sharp": "^0.35.2"
+  }
+}

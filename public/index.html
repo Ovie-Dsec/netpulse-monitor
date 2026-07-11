@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Netpulse Monitor</title>
+  <link rel="icon" type="image/x-icon" href="NPM.ico">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="app">
+    <header class="netpulse-header">
+      <div class="header-brand">
+        <img src="NPM.png" alt="NPM" class="brand-logo">
+        <h1>NETPULSE MONITOR</h1>
+      </div>
+      <div class="header-status">
+        <span class="status-indicator online"></span>
+        <span class="status-text">SYSTEM NOMINAL</span>
+        <span class="clock-display" id="clockDisplay">00:00:00</span>
+      </div>
+    </header>
+
+    <main class="netpulse-grid" id="monitorGrid">
+    </main>
+
+    <aside class="overlay-panel" id="overlayPanel">
+      <div class="overlay-header">
+        <h2 class="overlay-title" id="overlayTitle">NODE VIEWPORT</h2>
+        <div class="overlay-header-actions">
+          <button class="btn btn-export" id="exportCsvBtn">EXPORT CSV</button>
+          <button class="btn btn-minimize" id="overlayClose">MINIMIZE</button>
+        </div>
+      </div>
+      <div class="overlay-body">
+        <div class="overlay-canvas-wrapper">
+          <canvas class="pulse-canvas overlay-canvas" id="overlayCanvas"></canvas>
+        </div>
+        <div class="overlay-console">
+          <div class="console-header">
+            <span>PINGS CONSOLE LOG</span>
+            <span id="overlayConsoleCount">0 entries</span>
+          </div>
+          <div class="console-log" id="overlayConsoleLog">
+            <div class="log-entry log-info">[SYSTEM] Console initialized.</div>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <div class="settings-overlay" id="settingsOverlay">
+      <div class="settings-modal">
+        <div class="settings-nav">
+          <h3 class="settings-heading">SETTINGS</h3>
+          <ul class="settings-nav-list">
+            <li class="settings-nav-item active" data-pane="general">General</li>
+            <li class="settings-nav-item" data-pane="visual">Visual</li>
+            <li class="settings-nav-item" data-pane="add-ip">Add IP Address</li>
+          </ul>
+        </div>
+        <div class="settings-panes">
+          <div class="settings-pane active" id="pane-general">
+            <h4>General</h4>
+            <label class="setting-row">
+              <span>Polling Interval (ms)</span>
+              <input type="number" value="1000" min="100" max="10000">
+            </label>
+            <label class="setting-row">
+              <span>Ping Timeout (ms)</span>
+              <input type="number" value="3000" min="500" max="30000">
+            </label>
+            <label class="setting-row">
+              <span>Max Retries</span>
+              <input type="number" value="3" min="0" max="10">
+            </label>
+          </div>
+          <div class="settings-pane" id="pane-visual">
+            <h4>Visual</h4>
+            <label class="setting-row">
+              <span>Chart Type</span>
+              <select class="chart-type-select" id="chartTypeSelect">
+                <option value="ecg">Heartbeat ECG</option>
+                <option value="step-area">Solid Step Area</option>
+                <option value="grid-bar">Digital Grid Bar</option>
+              </select>
+            </label>
+            <label class="setting-row">
+              <span>Waveform Color</span>
+              <input type="color" id="waveformColor" value="#00ff66">
+            </label>
+            <label class="setting-row">
+              <span>Grid Opacity</span>
+              <input type="range" id="gridOpacity" min="0" max="1" step="0.05" value="0.15">
+            </label>
+            <label class="setting-row">
+              <span>Glow Intensity</span>
+              <input type="range" id="glowIntensity" min="0" max="100" step="1" value="60">
+            </label>
+          </div>
+          <div class="settings-pane" id="pane-add-ip">
+            <h4>Add IP Address</h4>
+            <p class="pane-description">Enter a name and IPv4 address to monitor a new node.</p>
+            <div class="ip-input-group">
+              <input type="text" class="ip-input" id="nodeNameInput" placeholder="My Server">
+              <input type="text" class="ip-input" id="ipAddressInput" placeholder="192.168.1.1">
+              <button class="btn btn-add-ip" id="addIpBtn">ADD NODE</button>
+            </div>
+            <div class="current-nodes-section">
+              <span class="current-nodes-label">MONITORED NODES</span>
+              <ul class="current-nodes-list" id="currentNodeList"></ul>
+            </div>
+          </div>
+          <div class="settings-footer">
+            <button class="btn btn-settings-close" id="settingsCloseBtn">CLOSE</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="global-live-console" class="terminal-box">
+      <div class="console-resize-handle">⋯</div>
+      <div class="terminal-header">
+        <span>🖥️ CORE TELEMETRY STREAM</span>
+        <button class="btn terminal-export-btn" id="globalExportLogBtn">EXPORT LOG</button>
+      </div>
+      <div class="terminal-body" id="globalConsoleBody"></div>
+    </div>
+
+    <footer class="system-footer">
+      <div class="system-footer-content">
+        <span class="footer-label">SYS LOG</span>
+        <div class="footer-log" id="systemLog">
+          <span class="log-entry log-info">[SYSTEM] Initializing Netpulse Monitor.</span>
+        </div>
+      </div>
+    </footer>
+
+    <button class="btn btn-settings-toggle" id="settingsToggle" title="Settings">⚙</button>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
