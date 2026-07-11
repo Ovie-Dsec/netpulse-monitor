@@ -398,7 +398,7 @@ class NetpulseMonitorApp {
 
   _connectWebSocket() {
     const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const url = proto + '//' + window.location.hostname + ':3000';
+    const url = proto + '//' + window.location.host;
     this.ws = new WebSocket(url);
 
     this.ws.onopen = () => {

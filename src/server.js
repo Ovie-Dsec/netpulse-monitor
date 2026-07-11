@@ -1,13 +1,30 @@
 const path = require('path');
 const fs = require('fs');
+const net = require('net');
 const express = require('express');
 const http = require('http');
 const { WebSocketServer } = require('ws');
 const db = require('./db/database');
 const pinger = require('./services/pinger');
 
-const PORT = 3000;
+let PORT = 3000;
 const HOST = '0.0.0.0';
+
+async function getAvailablePort(start) {
+  for (let port = start; port < start + 100; port++) {
+    try {
+      await new Promise((resolve, reject) => {
+        const srv = net.createServer();
+        srv.on('error', reject);
+        srv.listen(port, HOST, () => { srv.close(() => resolve()); });
+      });
+      return port;
+    } catch (e) {
+      if (e.code !== 'EADDRINUSE') throw e;
+    }
+  }
+  throw new Error('No available port found in range ' + start + '-' + (start + 99));
+}
 
 let app, server, wss, clients;
 
@@ -285,8 +302,13 @@ process.on('uncaughtException', (err) => {
   console.log('Restarting in 3s...');
   setTimeout(() => {
     createApp();
-startServer().catch(() => {});
+    startServer().catch(() => {});
   }, 3000);
 });
 
-startServer().catch(() => {});
+async function main() {
+  PORT = await getAvailablePort(3000);
+  startServer().catch(() => {});
+}
+
+main();
