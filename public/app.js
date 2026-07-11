@@ -473,7 +473,7 @@ class NetpulseMonitorApp {
         this._writeConsole('Engine synchronized \u2014 ' + msg.targets.length + ' targets', 'info');
         break;
       case 'ping':
-        this._ingestPingResult(msg.data);
+        try { this._ingestPingResult(msg.data); } catch (e) { console.error('ingest error', e); }
         break;
       case 'target-added':
         if (!this.nodes.has(msg.ip)) {
@@ -688,45 +688,6 @@ class NetpulseMonitorApp {
     ctx.stroke();
   }
 
-  _updateStatusBar() {
-    let online = 0, degraded = 0, offline = 0, totalLat = 0, latCount = 0;
-    let totalOk = 0, totalPings = 0;
-    this.engines.forEach((engine, ip) => {
-      const card = this.nodes.get(ip);
-      if (!card) return;
-      if (card.classList.contains('disabled')) return;
-      const label = card.querySelector('.status-label');
-      if (!label) return;
-      const text = label.textContent;
-      if (text === 'Online') { online++; }
-      else if (text === 'Degraded' || text === 'Warning') { degraded++; }
-      else { offline++; }
-      const donut = card.querySelector('.card-donut-canvas');
-      if (donut && donut._donutData) {
-        totalOk += donut._donutData.ok;
-        totalPings += donut._donutData.ok + donut._donutData.fail;
-      }
-      if (engine.buffer && engine.sampleCount > 0) {
-        const vals = [];
-        for (let i = 0; i < engine.sampleCount; i++) {
-          const v = engine.buffer[(engine.writeIndex - engine.sampleCount + i + engine.bufferSize) % engine.bufferSize];
-          if (v >= 0) vals.push(v);
-        }
-        if (vals.length > 0) {
-          const avgNorm = vals.reduce((a, b) => a + b, 0) / vals.length;
-          totalLat += (1 - avgNorm) * 500;
-          latCount++;
-        }
-      }
-    });
-    document.getElementById('statOnlineCount').textContent = online;
-    document.getElementById('statDegradedCount').textContent = degraded;
-    document.getElementById('statOfflineCount').textContent = offline;
-    document.getElementById('statAvgLatency').textContent = latCount ? Math.round(totalLat / latCount) + 'ms' : '—';
-    const uptime = totalPings ? Math.round((totalOk / totalPings) * 100) : 100;
-    document.getElementById('statUptimePct').textContent = uptime.toFixed(1);
-  }
-
   isValidIp(str) {
     const parts = str.trim().split('.');
     if (parts.length !== 4) return false;
@@ -789,8 +750,8 @@ class NetpulseMonitorApp {
 
     const donutCanvas = card.querySelector('.card-donut-canvas');
     const sparkCanvas = card.querySelector('.card-sparkline-canvas');
-    donutCanvas._donutData = { ok: 0, fail: 0 };
-    sparkCanvas._sparkData = [];
+    if (donutCanvas) donutCanvas._donutData = { ok: 0, fail: 0 };
+    if (sparkCanvas) sparkCanvas._sparkData = [];
 
     requestAnimationFrame(() => {
       engine.resize();
@@ -1185,25 +1146,38 @@ class NetpulseMonitorApp {
 
   _updateStatusBar() {
     let online = 0, degraded = 0, offline = 0, totalLat = 0, latCount = 0;
-    for (const ip of this.engines.keys()) {
+    let totalOk = 0, totalPings = 0;
+    this.engines.forEach((engine, ip) => {
       const card = this.nodes.get(ip);
-      if (!card || card.classList.contains('disabled')) continue;
-      const led = card.querySelector('.status-led');
-      if (led.classList.contains('green')) { online++; }
-      else if (led.classList.contains('yellow')) { degraded++; }
+      if (!card || card.classList.contains('disabled')) return;
+      const label = card.querySelector('.status-label');
+      if (!label) return;
+      const text = label.textContent;
+      if (text === 'Online') { online++; }
+      else if (text === 'Degraded' || text === 'Warning') { degraded++; }
       else { offline++; }
-      const engine = this.engines.get(ip);
-      if (engine && engine.data.length > 0) {
-        const last = engine.data[engine.data.length - 1];
-        if (last > 0) { totalLat += last; latCount++; }
+      const donut = card.querySelector('.card-donut-canvas');
+      if (donut && donut._donutData) {
+        totalOk += donut._donutData.ok;
+        totalPings += donut._donutData.ok + donut._donutData.fail;
       }
-    }
-    const avgLat = latCount > 0 ? Math.round(totalLat / latCount) : 0;
-    const total = online + degraded + offline;
-    const uptimePct = total > 0 ? Math.round(((online + degraded) / total) * 100) : 100;
-
+      if (engine.buffer) {
+        const vals = [];
+        for (let i = 0; i < engine.sampleCount; i++) {
+          const v = engine.buffer[(engine.writeIndex - engine.sampleCount + i + engine.bufferSize) % engine.bufferSize];
+          if (v >= 0) vals.push(v);
+        }
+        if (vals.length > 0) {
+          const avgNorm = vals.reduce((a, b) => a + b, 0) / vals.length;
+          totalLat += (1 - avgNorm) * 500;
+          latCount++;
+        }
+      }
+    });
     const el = document.getElementById('statusBar');
     if (el) {
+      const avgLat = latCount > 0 ? Math.round(totalLat / latCount) : 0;
+      const uptimePct = totalPings > 0 ? Math.round((totalOk / totalPings) * 100) : 100;
       el.innerHTML =
         '<span class="status-bar-online">\u25CF Online: ' + online + '</span>' +
         '<span class="status-bar-degraded">\u25CF Degraded: ' + degraded + '</span>' +
