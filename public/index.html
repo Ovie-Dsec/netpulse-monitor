@@ -9,6 +9,7 @@
 </head>
 <body>
   <div id="app">
+    <canvas id="particleCanvas"></canvas>
     <header class="netpulse-header">
       <div class="header-brand">
         <img src="NPM.png" alt="NPM" class="brand-logo">
@@ -18,10 +19,11 @@
         <span class="status-indicator online"></span>
         <span class="status-text">SYSTEM NOMINAL</span>
         <span class="clock-display" id="clockDisplay">00:00:00</span>
+        <button class="btn btn-dashboard-toggle" id="dashboardToggle" title="Historical Dashboard">📊</button>
       </div>
     </header>
 
-    <div class="status-summary-bar" id="statusSummaryBar">
+    <div class="status-summary-bar" id="statusBar">
       <div class="stat-block stat-online"><span class="stat-dot online"></span><span id="statOnlineCount">0</span> Online</div>
       <div class="stat-block stat-degraded"><span class="stat-dot degraded"></span><span id="statDegradedCount">0</span> Degraded</div>
       <div class="stat-block stat-offline"><span class="stat-dot offline"></span><span id="statOfflineCount">0</span> Offline</div>
@@ -31,6 +33,33 @@
 
     <main class="netpulse-grid" id="monitorGrid">
     </main>
+
+    <aside class="dashboard-panel" id="dashboardPanel">
+      <div class="dashboard-header">
+        <h2>HISTORICAL DASHBOARD</h2>
+        <button class="btn btn-minimize" id="dashboardClose">CLOSE</button>
+      </div>
+      <div class="dashboard-body">
+        <div class="dash-section">
+          <span class="dash-section-title">LATENCY OVER TIME</span>
+          <div class="dash-chart-wrap">
+            <canvas id="dashLatencyChart"></canvas>
+          </div>
+        </div>
+        <div class="dash-row">
+          <div class="dash-section dash-half">
+            <span class="dash-section-title">UPTIME</span>
+            <div class="dash-chart-wrap dash-chart-small">
+              <canvas id="dashUptimeChart"></canvas>
+            </div>
+          </div>
+          <div class="dash-section dash-half">
+            <span class="dash-section-title">DOWNTIME EVENTS</span>
+            <div class="dash-timeline" id="dashTimeline"></div>
+          </div>
+        </div>
+      </div>
+    </aside>
 
     <aside class="overlay-panel" id="overlayPanel">
       <div class="overlay-header">
@@ -104,6 +133,14 @@
               <span>Glow Intensity</span>
               <input type="range" id="glowIntensity" min="0" max="100" step="1" value="60">
             </label>
+            <label class="setting-row setting-row-checkbox">
+              <span>Sound Alerts</span>
+              <input type="checkbox" id="soundToggle" checked>
+            </label>
+            <label class="setting-row setting-row-checkbox">
+              <span>Desktop Notifications</span>
+              <input type="checkbox" id="notifToggle">
+            </label>
           </div>
           <div class="settings-pane" id="pane-add-ip">
             <h4>Add IP Address</h4>
@@ -116,6 +153,11 @@
             <div class="current-nodes-section">
               <span class="current-nodes-label">MONITORED NODES</span>
               <ul class="current-nodes-list" id="currentNodeList"></ul>
+            </div>
+            <div class="config-actions">
+              <button class="btn btn-config" id="exportConfigBtn">EXPORT CONFIG</button>
+              <button class="btn btn-config" id="importConfigBtn">IMPORT CONFIG</button>
+              <input type="file" id="importFileInput" accept=".json" style="display:none">
             </div>
           </div>
           <div class="settings-footer">

@@ -54,6 +54,7 @@ function _initSchema() {
     )
   `);
   try { db.run('ALTER TABLE nodes ADD COLUMN sort_order INTEGER DEFAULT 0'); } catch (_) {}
+  try { db.run('ALTER TABLE nodes ADD COLUMN poll_rate INTEGER DEFAULT 0'); } catch (_) {}
   _save();
 }
 
@@ -91,6 +92,12 @@ async function getTargets() {
   const results = d.exec('SELECT ip_address FROM nodes ORDER BY sort_order ASC, ip_address ASC');
   if (results.length === 0) return [];
   return results[0].values.map(row => row[0]);
+}
+
+async function setNodePollRate(ip, pollRate) {
+  const d = await getDb();
+  d.run('UPDATE nodes SET poll_rate = ? WHERE ip_address = ?', [pollRate, ip]);
+  _save();
 }
 
 async function getHistoricalDowntime(ip) {
@@ -212,9 +219,9 @@ async function getNode(ip) {
 
 async function getAllNodes() {
   const d = await getDb();
-  const results = d.exec('SELECT ip_address, name, sort_order FROM nodes ORDER BY sort_order ASC, ip_address ASC');
+  const results = d.exec('SELECT ip_address, name, sort_order, poll_rate FROM nodes ORDER BY sort_order ASC, ip_address ASC');
   if (results.length === 0) return [];
-  return results[0].values.map(row => ({ ip: row[0], name: row[1], sortOrder: row[2] }));
+  return results[0].values.map(row => ({ ip: row[0], name: row[1], sortOrder: row[2], pollRate: row[3] || 0 }));
 }
 
 module.exports = {
@@ -230,6 +237,7 @@ module.exports = {
   getNodeName,
   getNode,
   getAllNodes,
+  setNodePollRate,
   updateNodeOrder,
   getDb
 };

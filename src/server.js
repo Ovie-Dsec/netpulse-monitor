@@ -77,14 +77,15 @@ app.get('/api/targets', async (req, res) => {
     const targets = await db.getTargets();
     const nodes = await db.getAllNodes();
     const nodeMap = {};
-    nodes.forEach(n => { nodeMap[n.ip] = n.name; });
+    nodes.forEach(n => { nodeMap[n.ip] = { name: n.name, pollRate: n.pollRate }; });
 
     const withState = await Promise.all(targets.map(async ip => {
       const state = pinger.getTargetState(ip);
       const latest = await db.getLatestForTarget(ip);
       return {
         ip,
-        name: nodeMap[ip] || ip,
+        name: (nodeMap[ip] && nodeMap[ip].name) || ip,
+        pollRate: (nodeMap[ip] && nodeMap[ip].pollRate) || 0,
         state: state ? { latency: state.lastLatency, status: state.lastStatus } : null,
         latest
       };
@@ -219,6 +220,22 @@ app.put('/api/nodes/reorder', async (req, res) => {
     await db.updateNodeOrder(order);
     broadcast({ type: 'nodes-reordered', order });
     res.json({ status: 'reordered' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/api/nodes/:ip/pollrate', async (req, res) => {
+  try {
+    const ip = req.params.ip;
+    const { pollRate } = req.body;
+    const rate = parseInt(pollRate, 10);
+    if (isNaN(rate) || rate < 500) {
+      return res.status(400).json({ error: 'pollRate must be >= 500' });
+    }
+    await db.setNodePollRate(ip, rate);
+    pinger.setTargetPollRate(ip, rate);
+    res.json({ ip, pollRate: rate, status: 'updated' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

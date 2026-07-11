@@ -4,16 +4,28 @@ const db = require('../db/database');
 class PingerService {
   constructor() {
     this.targets = new Map();
-    this.interval = null;
     this.pollRate = 2000;
+    this._intervals = new Map();
+    this._targetRates = new Map();
     this.onResult = null;
   }
 
   setPollRate(ms) {
     this.pollRate = ms;
-    if (this.interval) {
-      this.restart();
+    this._targetRates.clear();
+    this.restart();
+  }
+
+  setTargetPollRate(ip, ms) {
+    this._targetRates.set(ip, ms);
+    if (this._intervals.has(ip)) {
+      clearInterval(this._intervals.get(ip));
+      this._intervals.set(ip, setInterval(() => this._ping(ip), ms));
     }
+  }
+
+  getTargetPollRate(ip) {
+    return this._targetRates.get(ip) || this.pollRate;
   }
 
   onPingResult(callback) {
@@ -22,10 +34,20 @@ class PingerService {
 
   addTarget(ip) {
     this.targets.set(ip, { lastLatency: -1, lastStatus: 'UNKNOWN' });
+    if (this._intervals.size > 0) {
+      const rate = this._targetRates.get(ip) || this.pollRate;
+      this._intervals.set(ip, setInterval(() => this._ping(ip), rate));
+      this._ping(ip);
+    }
   }
 
   removeTarget(ip) {
     this.targets.delete(ip);
+    this._targetRates.delete(ip);
+    if (this._intervals.has(ip)) {
+      clearInterval(this._intervals.get(ip));
+      this._intervals.delete(ip);
+    }
   }
 
   hasTarget(ip) {
@@ -41,16 +63,19 @@ class PingerService {
   }
 
   start() {
-    if (this.interval) return;
-    this._tick();
-    this.interval = setInterval(() => this._tick(), this.pollRate);
+    if (this._intervals.size > 0) return;
+    for (const ip of this.targets.keys()) {
+      const rate = this._targetRates.get(ip) || this.pollRate;
+      this._intervals.set(ip, setInterval(() => this._ping(ip), rate));
+      this._ping(ip);
+    }
   }
 
   stop() {
-    if (this.interval) {
-      clearInterval(this.interval);
-      this.interval = null;
+    for (const [ip, id] of this._intervals) {
+      clearInterval(id);
     }
+    this._intervals.clear();
   }
 
   restart() {
@@ -58,63 +83,37 @@ class PingerService {
     this.start();
   }
 
-  _tick() {
-    for (const ip of this.targets.keys()) {
-      this._ping(ip);
-    }
-  }
-
-  async _ping(ip) {
+  _ping(ip) {
     const start = Date.now();
-
-    try {
-      const result = await ping.promise.probe(ip, {
-        timeout: 3,
-        min_reply: 1,
-        extra: ['-n', '1']
-      });
-
+    ping.promise.probe(ip, {
+      timeout: 3,
+      min_reply: 1,
+      extra: ['-n', '1']
+    }).then(result => {
       const elapsed = Date.now() - start;
+      const timeNum = typeof result.time === 'number' ? result.time : 0;
       let latency, status;
-
       if (result.alive) {
-        latency = result.time || elapsed;
+        latency = timeNum || elapsed;
         status = latency < 100 ? 'ONLINE' : latency < 300 ? 'DEGRADED' : 'OFFLINE';
       } else {
-        latency = result.time || 0;
+        latency = timeNum;
         status = 'OFFLINE';
       }
-
-      const entry = {
-        ip,
-        latency: Math.round(latency),
-        status,
-        timestamp: new Date().toISOString()
-      };
-
+      const entry = { ip, latency: Math.round(latency), status, timestamp: new Date().toISOString() };
       if (this.hasTarget(ip)) {
-        await db.logPingResult(entry.ip, entry.latency, entry.status);
+        db.logPingResult(entry.ip, entry.latency, entry.status);
         this._updateTargetState(ip, entry.latency, entry.status);
-        if (this.onResult) {
-          this.onResult(entry);
-        }
+        if (this.onResult) this.onResult(entry);
       }
-    } catch (err) {
-      const entry = {
-        ip,
-        latency: 0,
-        status: 'OFFLINE',
-        timestamp: new Date().toISOString()
-      };
-
+    }).catch(() => {
+      const entry = { ip, latency: 0, status: 'OFFLINE', timestamp: new Date().toISOString() };
       if (this.hasTarget(ip)) {
-        await db.logPingResult(entry.ip, entry.latency, entry.status);
+        db.logPingResult(entry.ip, entry.latency, entry.status);
         this._updateTargetState(ip, 0, 'OFFLINE');
-        if (this.onResult) {
-          this.onResult(entry);
-        }
+        if (this.onResult) this.onResult(entry);
       }
-    }
+    });
   }
 
   _updateTargetState(ip, latency, status) {

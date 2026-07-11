@@ -206,6 +206,11 @@ class NetpulseMonitorApp {
     this.names = new Map();
     this.globalLogEntries = [];
     this.nodeOrder = [];
+    this._prevStatus = new Map();
+    this.soundEnabled = localStorage.getItem('netpulse-sound') !== '0';
+    this.notifEnabled = localStorage.getItem('netpulse-notif') === '1';
+    this.dashboardVisible = false;
+    this._particles = null;
     this._bindElements();
     this._bindEvents();
     this._initClock();
@@ -213,6 +218,7 @@ class NetpulseMonitorApp {
     this._fetchTargets();
     this._loadChartType();
     this._initResizeHandle();
+    this._initParticles();
   }
 
   _bindElements() {
@@ -237,6 +243,19 @@ class NetpulseMonitorApp {
     this.globalConsoleBody = document.getElementById('globalConsoleBody');
     this.globalExportLogBtn = document.getElementById('globalExportLogBtn');
     this.globalConsole = document.getElementById('global-live-console');
+    this.statusBar = document.getElementById('statusBar');
+    this.soundToggle = document.getElementById('soundToggle');
+    this.notifToggle = document.getElementById('notifToggle');
+    this.exportConfigBtn = document.getElementById('exportConfigBtn');
+    this.importConfigBtn = document.getElementById('importConfigBtn');
+    this.importFileInput = document.getElementById('importFileInput');
+    this.particleCanvas = document.getElementById('particleCanvas');
+    this.dashboardToggle = document.getElementById('dashboardToggle');
+    this.dashboardPanel = document.getElementById('dashboardPanel');
+    this.dashboardClose = document.getElementById('dashboardClose');
+    this.dashLatencyChart = document.getElementById('dashLatencyChart');
+    this.dashUptimeChart = document.getElementById('dashUptimeChart');
+    this.dashTimeline = document.getElementById('dashTimeline');
   }
 
   _bindEvents() {
@@ -283,6 +302,30 @@ class NetpulseMonitorApp {
         this._overlayEngineInstance.color = c;
       }
     });
+
+    this.soundToggle.addEventListener('change', () => {
+      this.soundEnabled = this.soundToggle.checked;
+      localStorage.setItem('netpulse-sound', this.soundEnabled ? '1' : '0');
+    });
+    this.soundToggle.checked = this.soundEnabled;
+
+    this.notifToggle.addEventListener('change', () => {
+      this.notifEnabled = this.notifToggle.checked;
+      localStorage.setItem('netpulse-notif', this.notifEnabled ? '1' : '0');
+      if (this.notifEnabled && Notification.permission === 'default') {
+        Notification.requestPermission();
+      }
+    });
+    this.notifToggle.checked = this.notifEnabled;
+
+    this.exportConfigBtn.addEventListener('click', () => this._exportConfig());
+    this.importConfigBtn.addEventListener('click', () => this.importFileInput.click());
+    this.importFileInput.addEventListener('change', (e) => {
+      if (e.target.files.length) this._importConfig(e.target.files[0]);
+    });
+
+    this.dashboardToggle.addEventListener('click', () => this._toggleDashboard());
+    this.dashboardClose.addEventListener('click', () => this._toggleDashboard());
 
     window.addEventListener('resize', () => {
       this.engines.forEach(engine => engine.resize());
@@ -386,7 +429,7 @@ class NetpulseMonitorApp {
       data.targets.forEach(t => {
         if (t.name) this.names.set(t.ip, t.name);
         if (!this.nodes.has(t.ip)) {
-          this.addNode(t.ip);
+          this.addNode(t.ip, t.pollRate || 0);
         }
         this.nodeOrder.push(t.ip);
       });
@@ -510,6 +553,17 @@ class NetpulseMonitorApp {
       return;
     }
 
+    const prev = this._prevStatus.get(data.ip);
+    if (prev && prev !== data.status) {
+      if (this.soundEnabled) this._playAlertSound(data.status === 'OFFLINE' ? 'offline' : 'recovery');
+      if (this.notifEnabled && document.hidden) {
+        const name = this.names.get(data.ip) || data.ip;
+        if (data.status === 'OFFLINE') this._sendNotification(name + ' is OFFLINE', 'No response from ' + data.ip);
+        else this._sendNotification(name + ' recovered', 'Status: ' + data.status + ' (' + data.latency + 'ms)');
+      }
+    }
+    this._prevStatus.set(data.ip, data.status);
+
     if (data.status === 'OFFLINE') {
       engine.pushEmpty();
     } else {
@@ -521,6 +575,12 @@ class NetpulseMonitorApp {
     this._updateDonutRing(data.ip, data.status);
     this._updateSparkline(data.ip, data.status === 'OFFLINE' ? -1 : data.latency);
     this._updateStatusBar();
+    if (this._particles) {
+      const px = Math.random() * window.innerWidth;
+      const py = Math.random() * window.innerHeight;
+      const col = data.status === 'ONLINE' ? '#00ff66' : data.status === 'DEGRADED' ? '#ffaa00' : '#ff3355';
+      this._particles.pulse(px, py, col);
+    }
 
     if (this.overlayIp === data.ip && this._overlayEngineInstance) {
       if (data.status === 'OFFLINE') {
@@ -706,7 +766,7 @@ class NetpulseMonitorApp {
     }
   }
 
-  addNode(ip) {
+  addNode(ip, pollRate) {
     if (this.nodes.has(ip)) return;
     const card = this._createCard(ip);
     this.grid.appendChild(card);
@@ -716,6 +776,11 @@ class NetpulseMonitorApp {
     const nameEl = card.querySelector('.card-name');
     const displayName = this.names.get(ip) || ip;
     if (nameEl) nameEl.textContent = displayName;
+
+    const pollSelect = card.querySelector('.card-poll-rate');
+    if (pollSelect && pollRate) {
+      pollSelect.value = String(pollRate);
+    }
 
     const canvas = card.querySelector('.pulse-canvas');
     const engine = new PulseWaveEngine(canvas);
@@ -736,6 +801,12 @@ class NetpulseMonitorApp {
     card.querySelector('.btn-edit').addEventListener('click', () => this._editNode(ip));
     card.querySelector('.btn-delete').addEventListener('click', () => this._deleteNode(ip));
     card.querySelector('.btn-disable').addEventListener('click', () => this.toggleNode(ip));
+
+    const pollSelect = card.querySelector('.card-poll-rate');
+    if (pollSelect) {
+      pollSelect.addEventListener('change', () => this._setNodePollRate(ip, parseInt(pollSelect.value, 10)));
+    }
+
     this._addDragHandlers(card, ip);
     this._renderNodeList();
   }
@@ -987,6 +1058,19 @@ class NetpulseMonitorApp {
         '<canvas class="card-sparkline-canvas"></canvas>' +
       '</div>' +
       '<div class="card-controls">' +
+        '<div class="card-poll-rate-wrap">' +
+          '<label class="poll-rate-label">Poll:</label>' +
+          '<select class="card-poll-rate">' +
+            '<option value="500">500ms</option>' +
+            '<option value="1000">1s</option>' +
+            '<option value="2000" selected>2s</option>' +
+            '<option value="3000">3s</option>' +
+            '<option value="5000">5s</option>' +
+            '<option value="10000">10s</option>' +
+            '<option value="15000">15s</option>' +
+            '<option value="30000">30s</option>' +
+          '</select>' +
+        '</div>' +
         '<button class="btn btn-expand">EXPAND VIEWPORT</button>' +
         '<button class="btn btn-edit">EDIT</button>' +
         '<button class="btn btn-delete">DELETE</button>' +
@@ -1086,6 +1170,136 @@ class NetpulseMonitorApp {
     this._renderNodeList();
   }
 
+  async _setNodePollRate(ip, rate) {
+    try {
+      await fetch(this.backendUrl + '/api/nodes/' + encodeURIComponent(ip) + '/pollrate', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pollRate: rate })
+      });
+      this._writeConsole(ip + ' poll rate set to ' + rate + 'ms', 'info');
+    } catch (e) {
+      this._writeConsole('Failed to set poll rate: ' + e.message, 'fail');
+    }
+  }
+
+  _updateStatusBar() {
+    let online = 0, degraded = 0, offline = 0, totalLat = 0, latCount = 0;
+    for (const ip of this.engines.keys()) {
+      const card = this.nodes.get(ip);
+      if (!card || card.classList.contains('disabled')) continue;
+      const led = card.querySelector('.status-led');
+      if (led.classList.contains('green')) { online++; }
+      else if (led.classList.contains('yellow')) { degraded++; }
+      else { offline++; }
+      const engine = this.engines.get(ip);
+      if (engine && engine.data.length > 0) {
+        const last = engine.data[engine.data.length - 1];
+        if (last > 0) { totalLat += last; latCount++; }
+      }
+    }
+    const avgLat = latCount > 0 ? Math.round(totalLat / latCount) : 0;
+    const total = online + degraded + offline;
+    const uptimePct = total > 0 ? Math.round(((online + degraded) / total) * 100) : 100;
+
+    const el = document.getElementById('statusBar');
+    if (el) {
+      el.innerHTML =
+        '<span class="status-bar-online">\u25CF Online: ' + online + '</span>' +
+        '<span class="status-bar-degraded">\u25CF Degraded: ' + degraded + '</span>' +
+        '<span class="status-bar-offline">\u25CF Offline: ' + offline + '</span>' +
+        '<span class="status-bar-latency">\u26A1 Avg: ' + avgLat + 'ms</span>' +
+        '<span class="status-bar-uptime">\u2191 Uptime: ' + uptimePct + '%</span>';
+    }
+  }
+
+  _updateDonutRing(ip, status) {
+    const card = this.nodes.get(ip);
+    if (!card) return;
+    const canvas = card.querySelector('.card-donut-canvas');
+    if (!canvas) return;
+    const data = canvas._donutData || { ok: 0, fail: 0 };
+    if (status === 'ONLINE' || status === 'DEGRADED') data.ok++;
+    else data.fail++;
+    canvas._donutData = data;
+
+    const pctEl = card.querySelector('.card-donut-pct');
+    const total = data.ok + data.fail;
+    const pct = total > 0 ? Math.round((data.ok / total) * 100) : 100;
+    if (pctEl) pctEl.textContent = pct;
+
+    const ctx = canvas.getContext('2d');
+    const rect = canvas.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = rect.width * dpr;
+    canvas.height = rect.height * dpr;
+    ctx.scale(dpr, dpr);
+    const w = rect.width, h = rect.height;
+    ctx.clearRect(0, 0, w, h);
+
+    const cx = w / 2, cy = h / 2, r = Math.min(cx, cy) - 2;
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = '#1a2332';
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.stroke();
+
+    const okFrac = total > 0 ? data.ok / total : 1;
+    ctx.strokeStyle = pct >= 95 ? '#00ff66' : pct >= 80 ? '#ffaa00' : '#ff3355';
+    ctx.shadowColor = ctx.strokeStyle;
+    ctx.shadowBlur = 4;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * okFrac);
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+  }
+
+  _updateSparkline(ip, latency) {
+    const card = this.nodes.get(ip);
+    if (!card) return;
+    const canvas = card.querySelector('.card-sparkline-canvas');
+    if (!canvas) return;
+    const data = canvas._sparkData || [];
+    data.push(latency);
+    if (data.length > 60) data.shift();
+    canvas._sparkData = data;
+
+    const ctx = canvas.getContext('2d');
+    const rect = canvas.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = rect.width * dpr;
+    canvas.height = rect.height * dpr;
+    ctx.scale(dpr, dpr);
+    const w = rect.width, h = rect.height;
+    ctx.clearRect(0, 0, w, h);
+
+    if (data.length < 2) return;
+    const maxLat = Math.max(...data.filter(v => v >= 0), 1);
+    const step = w / Math.max(data.length - 1, 1);
+
+    ctx.beginPath();
+    for (let i = 0; i < data.length; i++) {
+      const x = i * step;
+      const y = data[i] >= 0 ? h - (data[i] / maxLat) * (h - 2) - 1 : h - 1;
+      i === 0 ? ctx.moveTo(x, h) : null;
+      ctx.lineTo(x, y);
+    }
+    ctx.lineTo((data.length - 1) * step, h);
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(0,255,102,0.08)';
+    ctx.fill();
+
+    ctx.strokeStyle = 'rgba(0,255,102,0.3)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (let i = 0; i < data.length; i++) {
+      const x = i * step;
+      const y = data[i] >= 0 ? h - (data[i] / maxLat) * (h - 2) - 1 : h - 1;
+      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+  }
+
   openOverlay(ip) {
     if (!this.nodes.has(ip)) return;
     this.overlayIp = ip;
@@ -1176,8 +1390,315 @@ class NetpulseMonitorApp {
       e.preventDefault();
     });
   }
+
+  _playAlertSound(type) {
+    try {
+      const actx = new (window.AudioContext || window.webkitAudioContext)();
+      const osc = actx.createOscillator();
+      const gain = actx.createGain();
+      osc.connect(gain);
+      gain.connect(actx.destination);
+      gain.gain.value = 0.08;
+      osc.type = 'sine';
+      if (type === 'offline') {
+        osc.frequency.setValueAtTime(880, actx.currentTime);
+        osc.frequency.linearRampToValueAtTime(440, actx.currentTime + 0.3);
+      } else {
+        osc.frequency.setValueAtTime(440, actx.currentTime);
+        osc.frequency.linearRampToValueAtTime(880, actx.currentTime + 0.2);
+      }
+      osc.start();
+      osc.stop(actx.currentTime + 0.3);
+    } catch (_) {}
+  }
+
+  _sendNotification(title, body) {
+    if (!this.notifEnabled || Notification.permission !== 'granted') return;
+    try { new Notification(title, { body, icon: 'NPM.png' }); } catch (_) {}
+  }
+
+  _exportConfig() {
+    const nodes = [];
+    this.names.forEach((name, ip) => nodes.push({ ip, name }));
+    const blob = new Blob([JSON.stringify({ nodes }, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'netpulse-config.json';
+    a.click();
+    URL.revokeObjectURL(a.href);
+    this._writeConsole('Config exported (' + nodes.length + ' nodes)', 'info');
+  }
+
+  _importConfig(file) {
+    const reader = new FileReader();
+    reader.onload = async () => {
+      try {
+        const data = JSON.parse(reader.result);
+        if (!data.nodes || !Array.isArray(data.nodes)) throw new Error('Invalid config');
+        let count = 0;
+        for (const n of data.nodes) {
+          if (n.ip && !this.nodes.has(n.ip)) {
+            await fetch(this.backendUrl + '/api/targets', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ ip: n.ip, name: n.name || n.ip })
+            });
+            count++;
+          }
+        }
+        this._writeConsole('Imported ' + count + ' nodes from config', 'ok');
+        this.importFileInput.value = '';
+      } catch (e) {
+        this._writeConsole('Import failed: ' + e.message, 'fail');
+      }
+    };
+    reader.readAsText(file);
+  }
+
+  _initParticles() {
+    if (!this.particleCanvas) return;
+    this._particles = new ParticleBackground(this.particleCanvas);
+  }
+
+  _toggleDashboard() {
+    this.dashboardVisible = !this.dashboardVisible;
+    this.dashboardPanel.classList.toggle('active', this.dashboardVisible);
+    if (this.dashboardVisible) this._loadDashboardData();
+  }
+
+  async _loadDashboardData() {
+    const targets = Array.from(this.engines.keys());
+    if (targets.length === 0) return;
+    try {
+      const allHistory = {};
+      for (const ip of targets) {
+        const res = await fetch(this.backendUrl + '/api/history/' + encodeURIComponent(ip) + '?limit=5000');
+        const data = await res.json();
+        if (data.history) allHistory[ip] = data.history;
+      }
+      this._drawLatencyChart(allHistory);
+      this._drawUptimeChart(allHistory);
+      this._renderDowntimeTimeline(allHistory);
+    } catch (e) {
+      this._writeConsole('Dashboard data error: ' + e.message, 'fail');
+    }
+  }
+
+  _drawLatencyChart(allHistory) {
+    const canvas = this.dashLatencyChart;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const rect = canvas.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = rect.width * dpr;
+    canvas.height = rect.height * dpr;
+    ctx.scale(dpr, dpr);
+    const w = rect.width, h = rect.height;
+    ctx.clearRect(0, 0, w, h);
+
+    const colors = ['#00ff66', '#00ccff', '#ffaa00', '#ff3355', '#aa66ff', '#ff66aa'];
+    let colorIdx = 0;
+    let maxLat = 100;
+
+    const allNames = {};
+    this.names.forEach((name, ip) => { allNames[ip] = name; });
+
+    for (const ip of Object.keys(allHistory)) {
+      const data = allHistory[ip];
+      if (!data || data.length < 2) continue;
+      const vals = data.map(d => d.latency);
+      const maxV = Math.max(...vals);
+      if (maxV > maxLat) maxLat = maxV;
+    }
+    maxLat = Math.max(maxLat, 100);
+
+    const color = colors[0];
+    ctx.strokeStyle = '#1a2332';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (let i = 0; i <= 4; i++) {
+      const y = (h / 4) * i;
+      ctx.moveTo(0, y);
+      ctx.lineTo(w, y);
+    }
+    ctx.stroke();
+
+    colorIdx = 0;
+    for (const ip of Object.keys(allHistory)) {
+      const data = allHistory[ip];
+      if (!data || data.length < 2) continue;
+      const vals = data.map(d => d.latency);
+      const label = allNames[ip] || ip;
+      const col = colors[colorIdx % colors.length];
+      colorIdx++;
+
+      const step = w / Math.max(vals.length - 1, 1);
+      ctx.strokeStyle = col;
+      ctx.lineWidth = 1.5;
+      ctx.shadowColor = col;
+      ctx.shadowBlur = 4;
+      ctx.beginPath();
+      for (let i = 0; i < vals.length; i++) {
+        const x = i * step;
+        const y = h - (Math.min(vals[i], maxLat) / maxLat) * (h - 4) - 2;
+        i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+
+      ctx.fillStyle = col;
+      ctx.font = '9px monospace';
+      ctx.fillText(label, 4, 12 + (colorIdx - 1) * 12);
+    }
+
+    ctx.fillStyle = '#6b7482';
+    ctx.font = '8px monospace';
+    ctx.fillText(maxLat + 'ms', w - 30, 10);
+    ctx.fillText('0ms', w - 24, h - 2);
+  }
+
+  _drawUptimeChart(allHistory) {
+    const canvas = this.dashUptimeChart;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const rect = canvas.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = rect.width * dpr;
+    canvas.height = rect.height * dpr;
+    ctx.scale(dpr, dpr);
+    const w = rect.width, h = rect.height;
+
+    let totalOk = 0, totalFail = 0;
+    for (const ip of Object.keys(allHistory)) {
+      const data = allHistory[ip];
+      if (!data) continue;
+      for (const d of data) {
+        if (d.status === 'ONLINE' || d.status === 'DEGRADED') totalOk++;
+        else totalFail++;
+      }
+    }
+    const total = totalOk + totalFail;
+    if (total === 0) return;
+
+    const pct = Math.round((totalOk / total) * 100);
+    const cx = w / 2, cy = h / 2, r = Math.min(cx, cy) - 8;
+
+    ctx.clearRect(0, 0, w, h);
+    ctx.lineWidth = 10;
+    ctx.strokeStyle = '#1a2332';
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.stroke();
+
+    const okFrac = totalOk / total;
+    ctx.strokeStyle = pct >= 95 ? '#00ff66' : pct >= 80 ? '#ffaa00' : '#ff3355';
+    ctx.shadowColor = ctx.strokeStyle;
+    ctx.shadowBlur = 8;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * okFrac);
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+
+    ctx.fillStyle = '#f0f6fc';
+    ctx.font = 'bold 18px monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(pct + '%', cx, cy - 6);
+    ctx.fillStyle = '#6b7482';
+    ctx.font = '9px monospace';
+    ctx.fillText('uptime', cx, cy + 12);
+  }
+
+  _renderDowntimeTimeline(allHistory) {
+    const el = this.dashTimeline;
+    if (!el) return;
+    el.innerHTML = '';
+    let entries = [];
+    for (const ip of Object.keys(allHistory)) {
+      const data = allHistory[ip];
+      if (!data) continue;
+      for (const d of data) {
+        if (d.status === 'OFFLINE' || d.status === 'DEGRADED') {
+          entries.push({ ip, status: d.status === 'OFFLINE' ? 'offline' : 'degraded', time: d.timestamp, name: this.names.get(ip) || ip });
+        }
+      }
+    }
+    entries.sort((a, b) => b.time.localeCompare(a.time));
+    entries = entries.slice(0, 50);
+
+    for (const e of entries) {
+      const div = document.createElement('div');
+      div.className = 'dash-timeline-entry';
+      div.innerHTML = '<span class="dash-timeline-dot ' + e.status + '"></span><span class="dash-timeline-text">' + e.name + ' (' + e.status + ')</span><span class="dash-timeline-time">' + e.time.replace('T', ' ').split('.')[0] + '</span>';
+      el.appendChild(div);
+    }
+    if (entries.length === 0) {
+      el.innerHTML = '<div style="color:#6b7482;font-size:10px;padding:8px;">No downtime events recorded.</div>';
+    }
+  }
 }
 
-document.addEventListener('DOMContentLoaded', () => {
-  window.app = new NetpulseMonitorApp();
-});
+class ParticleBackground {
+  constructor(canvas) {
+    this.canvas = canvas;
+    this.ctx = canvas.getContext('2d');
+    this.particles = [];
+    this.width = 0;
+    this.height = 0;
+    this.rafId = null;
+    this._resize();
+    this._spawn(80);
+    this._animate();
+    window.addEventListener('resize', () => this._resize());
+  }
+  _resize() {
+    this.width = window.innerWidth;
+    this.height = window.innerHeight;
+    this.canvas.width = this.width;
+    this.canvas.height = this.height;
+  }
+  _spawn(count) {
+    for (let i = 0; i < count; i++) {
+      this.particles.push({
+        x: Math.random() * this.width,
+        y: Math.random() * this.height,
+        vx: (Math.random() - 0.5) * 0.3,
+        vy: -(Math.random() * 0.2 + 0.05),
+        size: Math.random() * 2 + 0.5,
+        opacity: Math.random() * 0.3 + 0.1,
+        pulse: 0
+      });
+    }
+  }
+  pulse(cx, cy, color) {
+    for (const p of this.particles) {
+      const dx = p.x - cx;
+      const dy = p.y - cy;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < 120) {
+        p.pulse = Math.max(p.pulse, (1 - dist / 120) * 0.6);
+        if (color) p.lastColor = color;
+      }
+    }
+  }
+  _animate() {
+    this.ctx.clearRect(0, 0, this.width, this.height);
+    for (const p of this.particles) {
+      p.x += p.vx;
+      p.y += p.vy;
+      if (p.y < -5) { p.y = this.height + 5; p.x = Math.random() * this.width; }
+      if (p.x < -5) p.x = this.width + 5;
+      if (p.x > this.width + 5) p.x = -5;
+      p.pulse = Math.max(0, p.pulse - 0.02);
+      const opacity = Math.min(p.opacity + p.pulse, 0.8);
+      const color = p.lastColor || '#00ff66';
+      this.ctx.fillStyle = color;
+      this.ctx.globalAlpha = opacity;
+      this.ctx.beginPath();
+      this.ctx.arc(p.x, p.y, p.size + p.pulse * 2, 0, Math.PI * 2);
+      this.ctx.fill();
+    }
+    this.ctx.globalAlpha = 1;
+    this.rafId = requestAnimationFrame(() => this._animate());
+  }
+}
