@@ -1956,3 +1956,7 @@ class ParticleBackground {
     this.rafId = requestAnimationFrame(() => this._animate());
   }
 }
+
+document.addEventListener('DOMContentLoaded', () => {
+  window.app = new NetpulseMonitorApp();
+});

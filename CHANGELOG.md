@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.3.1 — 2026-07-11
+
+### Fixed
+- NetpulseMonitorApp class was never instantiated — `DOMContentLoaded` listener with `new NetpulseMonitorApp()` was lost in a previous commit, causing all frontend functionality (cards, pings, console, visualizations) to be dead code. Restored the instantiation at the bottom of `app.js`.
+
 ## v1.3.0 — 2026-07-11
 
 ### Added
