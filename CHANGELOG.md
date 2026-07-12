@@ -1,5 +1,12 @@
 # Changelog
 
+## v1.3.2 — 2026-07-11
+
+### Fixed
+- Infinite watchdog restart loop on `disk I/O error` — watchdog now has a max restart counter (3 attempts) before shutting down with a diagnostic message pointing to `DB_PATH`
+- `_save()` in database.js now wraps `fs.writeFileSync` in try/catch with a descriptive error log that prints `DB_DIR` and `DB_PATH` so the user can identify file-access issues (permissions, locked file, full disk, anti-virus)
+- Added `closeDb()` to database.js that nullifies the cached `db` and `SQL` references and performs a final `_save()`, so the watchdog restarts with a fresh database connection instead of reusing a broken one
+
 ## v1.3.1 — 2026-07-11
 
 ### Fixed

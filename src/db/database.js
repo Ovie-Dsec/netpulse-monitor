@@ -59,9 +59,25 @@ function _initSchema() {
 }
 
 function _save() {
-  const data = db.export();
-  const buffer = Buffer.from(data);
-  fs.writeFileSync(DB_PATH, buffer);
+  try {
+    const data = db.export();
+    const buffer = Buffer.from(data);
+    fs.writeFileSync(DB_PATH, buffer);
+  } catch (err) {
+    console.error(`[DB] _save failed: ${err.message}`);
+    console.error(`[DB] DB_PATH=${DB_PATH}`);
+    console.error(`[DB] DB_DIR=${DB_DIR}`);
+  }
+}
+
+function closeDb() {
+  try {
+    if (db) {
+      _save();
+    }
+  } catch (_) {}
+  db = null;
+  SQL = null;
 }
 
 async function logPingResult(ip, latency, status) {
@@ -239,5 +255,6 @@ module.exports = {
   getAllNodes,
   setNodePollRate,
   updateNodeOrder,
-  getDb
+  getDb,
+  closeDb
 };

@@ -312,6 +312,7 @@ async function startServer() {
 }
 
 let restarting = true;
+let restartCount = 0;
 
 process.on('SIGINT', () => { restarting = false; process.exit(0); });
 process.on('SIGTERM', () => { restarting = false; process.exit(0); });
@@ -319,7 +320,15 @@ process.on('SIGTERM', () => { restarting = false; process.exit(0); });
 process.on('uncaughtException', (err) => {
   console.error(`\nFatal error: ${err.message}`);
   if (!restarting) return;
-  console.log('Restarting in 3s...');
+  restartCount++;
+  if (restartCount > 3) {
+    console.error('Max restarts reached. Shutting down.');
+    console.error(`Check DB_PATH for permission/disk issues.`);
+    restarting = false;
+    process.exit(1);
+  }
+  console.log('Restarting in 3s... (attempt ' + restartCount + '/3)');
+  db.closeDb();
   setTimeout(() => {
     createApp();
     startServer().catch(() => {});
