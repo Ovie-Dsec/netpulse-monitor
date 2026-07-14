@@ -1,5 +1,14 @@
 # Changelog
 
+## v1.3.4 — 2026-07-14
+
+### Security
+- **XSS in `_createCard`** — card name and IP are now HTML-escaped via `this._escHtml()` before insertion into innerHTML template (was using raw `this.names.get(ip) || ip`)
+- **XSS in overlay console log** — changed from `innerHTML` to DOM creation with `textContent` to prevent script injection via stored IP
+- **XSS in dashboard timeline** — node name and status are now rendered via DOM methods (createElement + textContent) instead of innerHTML string interpolation
+- **IP validation** — `POST /api/targets` and `PUT /api/targets/:ip` now validate the IP address format with a strict IPv4 regex before processing
+- **Error message leaking** — all `res.status(500)` responses now return `{ error: 'Internal server error' }` instead of leaking `err.message` (which could expose DB paths and internal details); real errors are logged server-side via `console.error(err)`
+
 ## v1.3.3 — 2026-07-12
 
 ### Added

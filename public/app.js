@@ -1276,12 +1276,14 @@ class NetpulseMonitorApp {
     card.className = 'netpulse-card';
     card.dataset.ip = ip;
     card.draggable = true;
+    const escName = this._escHtml(this.names.get(ip) || ip);
+    const escIp = this._escHtml(ip);
     card.innerHTML =
       '<div class="card-grip">⠿</div>' +
       '<div class="card-header">' +
         '<div class="card-header-left">' +
-          '<div class="card-name">' + (this.names.get(ip) || ip) + '</div>' +
-          '<span class="card-address">' + ip + '</span>' +
+          '<div class="card-name">' + escName + '</div>' +
+          '<span class="card-address">' + escIp + '</span>' +
         '</div>' +
         '<div class="card-led-group">' +
           '<div class="card-donut-wrap">' +
@@ -1560,7 +1562,11 @@ class NetpulseMonitorApp {
     this.overlayEntries = [];
     const displayName = this.names.get(ip) || ip;
     this.overlayTitle.textContent = 'NODE VIEWPORT \u2014 ' + displayName + ' (' + ip + ')';
-    this.overlayConsoleLog.innerHTML = '<div class="log-entry log-info">[SYSTEM] Monitoring ' + ip + '</div>';
+    this.overlayConsoleLog.textContent = '';
+    const logLine = document.createElement('div');
+    logLine.className = 'log-entry log-info';
+    logLine.textContent = '[SYSTEM] Monitoring ' + ip;
+    this.overlayConsoleLog.appendChild(logLine);
     this.overlayConsoleCount.textContent = '0 entries';
     this.overlay.classList.add('active');
 
@@ -1883,7 +1889,19 @@ class NetpulseMonitorApp {
     for (const e of entries) {
       const div = document.createElement('div');
       div.className = 'dash-timeline-entry';
-      div.innerHTML = '<span class="dash-timeline-dot ' + e.status + '"></span><span class="dash-timeline-text">' + e.name + ' (' + e.status + ')</span><span class="dash-timeline-time">' + e.time.replace('T', ' ').split('.')[0] + '</span>';
+      const dot = document.createElement('span');
+      dot.className = 'dash-timeline-dot';
+      const statusCls = ['ONLINE', 'DEGRADED', 'OFFLINE'].includes(e.status) ? e.status.toLowerCase() : 'unknown';
+      dot.classList.add(statusCls);
+      const text = document.createElement('span');
+      text.className = 'dash-timeline-text';
+      text.textContent = this._escHtml(e.name) + ' (' + e.status + ')';
+      const time = document.createElement('span');
+      time.className = 'dash-timeline-time';
+      time.textContent = e.time.replace('T', ' ').split('.')[0];
+      div.appendChild(dot);
+      div.appendChild(text);
+      div.appendChild(time);
       el.appendChild(div);
     }
     if (entries.length === 0) {

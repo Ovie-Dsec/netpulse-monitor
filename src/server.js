@@ -7,6 +7,18 @@ const { WebSocketServer } = require('ws');
 const db = require('./db/database');
 const pinger = require('./services/pinger');
 
+const IPV4_RE = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/;
+
+function isValidIp(str) {
+  const m = IPV4_RE.exec(str);
+  if (!m) return false;
+  for (let i = 1; i <= 4; i++) {
+    const octet = parseInt(m[i], 10);
+    if (octet < 0 || octet > 255) return false;
+  }
+  return true;
+}
+
 let PORT = 3000;
 const HOST = '0.0.0.0';
 
@@ -99,7 +111,8 @@ app.get('/api/targets', async (req, res) => {
       polling: pinger.getTargets()
     });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error(err);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -113,7 +126,8 @@ app.get('/api/history/:ip', async (req, res) => {
 
     res.json({ ip, history, downtime });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error(err);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -122,6 +136,9 @@ app.post('/api/targets', async (req, res) => {
     const { ip, name } = req.body;
     if (!ip) {
       return res.status(400).json({ error: 'ip is required' });
+    }
+    if (!isValidIp(ip)) {
+      return res.status(400).json({ error: 'invalid IP address format' });
     }
 
     if (pinger.hasTarget(ip)) {
@@ -137,7 +154,8 @@ app.post('/api/targets', async (req, res) => {
     broadcast({ type: 'target-added', ip, name: name || ip });
     res.status(201).json({ ip, name: name || ip, status: 'added' });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error(err);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -148,6 +166,9 @@ app.put('/api/targets/:ip', async (req, res) => {
 
     if (!newIp) {
       return res.status(400).json({ error: 'new ip is required' });
+    }
+    if (!isValidIp(newIp)) {
+      return res.status(400).json({ error: 'invalid IP address format' });
     }
     if (!pinger.hasTarget(oldIp)) {
       return res.status(404).json({ error: 'target not found' });
@@ -164,7 +185,8 @@ app.put('/api/targets/:ip', async (req, res) => {
     broadcast({ type: 'target-updated', oldIp, ip: newIp, name: node ? node.name : (name || newIp) });
     res.json({ oldIp, ip: newIp, status: 'updated' });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error(err);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -178,7 +200,8 @@ app.delete('/api/targets/:ip', async (req, res) => {
     broadcast({ type: 'target-removed', ip });
     res.json({ ip, status: 'removed' });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error(err);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -210,7 +233,8 @@ app.get('/api/nodes', async (req, res) => {
     });
     res.json({ nodes: withStatus });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error(err);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -224,7 +248,8 @@ app.put('/api/nodes/reorder', async (req, res) => {
     broadcast({ type: 'nodes-reordered', order });
     res.json({ status: 'reordered' });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error(err);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -240,7 +265,8 @@ app.put('/api/nodes/:ip/pollrate', async (req, res) => {
     pinger.setTargetPollRate(ip, rate);
     res.json({ ip, pollRate: rate, status: 'updated' });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error(err);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -255,7 +281,8 @@ app.put('/api/nodes/:ip', async (req, res) => {
     broadcast({ type: 'node-renamed', ip, name });
     res.json({ ip, name, status: 'updated' });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error(err);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
