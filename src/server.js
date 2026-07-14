@@ -290,24 +290,29 @@ setInterval(async () => {
   }
 }, 3600000);
 
-function getLanIp() {
+function getLanIps() {
   const os = require('os');
   const ifaces = os.networkInterfaces();
+  const ips = [];
   for (const name of Object.keys(ifaces)) {
     for (const iface of ifaces[name]) {
-      if (iface.family === 'IPv4' && !iface.internal) return iface.address;
+      if (iface.family === 'IPv4' && !iface.internal) ips.push(iface.address);
     }
   }
-  return null;
+  return ips;
 }
 
 async function startServer() {
   await seedInitialTargets();
   pinger.start();
   server.listen(PORT, HOST, () => {
-    const lan = getLanIp();
+    const ips = getLanIps();
     console.log(`Netpulse Monitor running on http://localhost:${PORT}`);
-    if (lan) console.log(`LAN access:      http://${lan}:${PORT}`);
+    for (const ip of ips) {
+      console.log(`LAN access:      http://${ip}:${PORT}`);
+    }
+    console.log(`[TIP] If LAN clients cannot connect, run as Admin:`);
+    console.log(`      netsh advfirewall firewall add rule name="Netpulse Monitor" dir=in action=allow protocol=TCP localport=${PORT}`);
   });
 }
 

@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.3.3 — 2026-07-12
+
+### Added
+- Firewall diagnostic tip printed at server startup — tells the user the exact `netsh` command to run as Admin if LAN clients cannot connect
+- `getLanIp()` renamed to `getLanIps()` and now returns **all** non-internal IPv4 addresses instead of just the first one found; each address is printed as a separate `LAN access:` line, fixing connectivity discovery on multi-homed machines (WiFi + LAN on different subnets)
+
 ## v1.3.2 — 2026-07-11
 
 ### Fixed
